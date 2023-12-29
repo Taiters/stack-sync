@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Get the output of git machete status
+status_output=$(git machete status)
+
+# Extract the PR numbers
+pr_numbers=$(echo "$status_output" | grep -Eo 'PR #[0-9]+' | awk '{print $2}')
+
+# Build the PR Stack string
+pr_stack=""
+pr_index=1
+for pr_number in $pr_numbers; do
+  # Add the PR number and link to the PR stack string
+  pr_stack+=$'\n'"$pr_index. $pr_number"
+  pr_index=$(($pr_index+1))
+done
+
+pr_stack=$'<!-- PR Stack: Start -->\n---\n**PR Stack**\n'"$pr_stack"$'\n<!-- PR Stack: End -->'
+
+# Iterate over the PR array again to update each PR's description
+for pr_number in $pr_numbers; do
+  # Get the current PR body and replace any windows-style line endings with unix-style
+  pr_body=$(gh pr view $pr_number --json body -q '.body' | perl -pe 's/\r\n/\n/g')
+
+  # Check if the PR body already contains the PR stack information
+  if [[ $pr_body != *"<!-- PR Stack: Start -->"* ]]; then
+    # Append the PR stack information to the PR body
+    new_body="$pr_body"$'\n'"$pr_stack"
+  else
+    # Replace the old PR stack information with the new one
+    new_body=$(echo -e "$pr_body" | perl -0777 -pe "s|<!-- PR Stack: Start -->.*<!-- PR Stack: End -->|$pr_stack|gs")
+  fi
+
+  if [ "$new_body" != "$pr_body" ]; then
+    echo "Updating PR $pr_number"
+    gh pr edit $pr_number --body "$new_body"
+  fi
+done
