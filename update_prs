@@ -1,5 +1,22 @@
 #!/bin/bash
 
+dry_run=0
+for arg in "$@"; do
+  if [[ $arg == "-h" ]]; then
+    echo "This script updates the descriptions of all pull requests in the current git machete status output."
+    echo "It adds a PR Stack section to each PR's description, which contains a list of all PRs in the stack."
+    echo "Usage: update_prs [-d]"
+    echo "Options:"
+    echo "  -d    Dry run. Show which PRs would be updated, but don't actually update anything."
+    exit 0
+  elif [[ $arg == "-d" ]]; then
+    dry_run=1
+  else
+    echo "Invalid argument: $arg"
+    exit 1
+  fi
+done
+
 # Get the output of git machete status
 status_output=$(git machete status)
 
@@ -32,7 +49,14 @@ for pr_number in $pr_numbers; do
   fi
 
   if [ "$new_body" != "$pr_body" ]; then
-    echo "Updating PR $pr_number"
-    gh pr edit $pr_number --body "$new_body"
+    if [[ $dry_run -eq 1 ]]; then
+      echo "Would update PR $pr_number"
+      continue
+    else
+      echo "Updating PR $pr_number"
+      gh pr edit $pr_number --body "$new_body"
+    fi
+  else
+    echo "Skipping PR $pr_number as nothing has changed"
   fi
 done
